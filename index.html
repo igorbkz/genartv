@@ -18,6 +18,8 @@
         }
         #input-container {
             margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
         }
         #theme-input {
             padding: 10px;
@@ -25,13 +27,14 @@
             margin-right: 10px;
             width: 300px;
         }
-        #add-theme-btn {
+        #add-theme-btn, #toggle-btn, #reset-btn {
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
             background-color: #61dafb;
             border: none;
             color: #20232a;
+            margin-right: 10px;
         }
         #image-container {
             display: flex;
@@ -47,6 +50,11 @@
             border: 5px solid #61dafb;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
         }
+        #control-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -54,10 +62,16 @@
         <input type="text" id="theme-input" placeholder="Enter a theme">
         <button id="add-theme-btn">Add Theme</button>
     </div>
+    <div id="control-container">
+        <button id="toggle-btn">Pause Generation</button>
+        <button id="reset-btn">Reset History</button>
+    </div>
     <div id="image-container"></div>
 
     <script>
         let themes = [];
+        let usedPrompts = new Set();
+        let isPaused = false;
         let timer;
 
         async function query(data) {
@@ -86,7 +100,7 @@
 
         function updatePrompt() {
             const prompt = themes.join(", ");
-            generateImage(prompt);
+            generateImageIfUnique(prompt);
         }
 
         async function generateImage(prompt) {
@@ -94,6 +108,13 @@
             const imageBlob = await query(data);
             const imageUrl = URL.createObjectURL(imageBlob);
             displayImage(imageUrl);
+        }
+
+        function generateImageIfUnique(prompt) {
+            if (!usedPrompts.has(prompt)) {
+                usedPrompts.add(prompt);
+                generateImage(prompt);
+            }
         }
 
         function displayImage(url) {
@@ -104,15 +125,43 @@
             imageContainer.prepend(img); // Add the new image at the beginning
         }
 
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
         function modifyPrompt() {
-            if (themes.length > 0) {
-                let currentPrompt = themes.join(", ");
-                // Example modification: add a random word
+            if (themes.length > 0 && !isPaused) {
+                // Shuffle the themes
+                shuffleArray(themes);
+                // Create a prompt with a random selection of themes
+                const selectedThemes = themes.slice(0, Math.min(5, themes.length));
+                let currentPrompt = selectedThemes.join(", ");
+                // Example modification: add a random descriptive word
                 const randomWords = ["beautiful", "mysterious", "fantastical", "detailed", "colorful"];
                 const randomWord = randomWords[Math.floor(Math.random() * randomWords.length)];
                 currentPrompt += `, ${randomWord}`;
-                generateImage(currentPrompt);
+                generateImageIfUnique(currentPrompt);
             }
+        }
+
+        function toggleGeneration() {
+            isPaused = !isPaused;
+            const toggleBtn = document.getElementById('toggle-btn');
+            toggleBtn.textContent = isPaused ? 'Resume Generation' : 'Pause Generation';
+            if (!isPaused) {
+                resetTimer();
+            } else {
+                clearInterval(timer);
+            }
+        }
+
+        function resetHistory() {
+            themes = [];
+            usedPrompts.clear();
+            document.getElementById('image-container').innerHTML = '';
         }
 
         function resetTimer() {
@@ -122,9 +171,17 @@
             timer = setInterval(modifyPrompt, 20000);
         }
 
+        // Adicionar eventos
         document.getElementById('add-theme-btn').addEventListener('click', addTheme);
+        document.getElementById('theme-input').addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                addTheme();
+            }
+        });
+        document.getElementById('toggle-btn').addEventListener('click', toggleGeneration);
+        document.getElementById('reset-btn').addEventListener('click', resetHistory);
 
-        // Start the initial timer
+        // Iniciar o temporizador inicial
         resetTimer();
     </script>
 </body>
