@@ -6,49 +6,100 @@
     <title>AI Art TV</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #000;
-            color: #fff;
-            text-align: center;
+            font-family: 'Arial', sans-serif;
+            background-color: #121212;
+            color: #eee;
             margin: 0;
-            overflow: hidden;
+            padding: 0;
+            box-sizing: border-box;
         }
+
         #controls {
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            background: rgba(20, 20, 20, 0.95);
             position: fixed;
             width: 100%;
             top: 0;
-            z-index: 10;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
+
         #controls input, #controls button {
             padding: 10px;
             font-size: 16px;
             margin: 5px;
-        }
-        #imageContainer {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: flex-start;
-            padding-top: 60px;
-            overflow-y: auto;
-            height: calc(100vh - 60px);
-        }
-        .image-card {
-            margin: 10px;
-            border: 2px solid #444;
-            transition: transform 0.3s, opacity 0.3s;
-            width: 300px;
+            border: 1px solid #333;
+            background: #222;
+            color: #ddd;
+            border-radius: 5px;
             cursor: pointer;
+            transition: all 0.3s;
         }
+
+        #controls button:hover, #controls input:hover {
+            background-color: #333;
+        }
+
+        #controls button:active {
+            transform: scale(0.98);
+        }
+
+        #imageContainer {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            margin-top: 80px; /* Space for controls */
+            transition: transform 0.3s;
+        }
+
+        .image-card {
+            border: 1px solid #444;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            position: relative;
+            background: #000;
+        }
+
         .image-card img {
-            max-width: 100%;
+            width: 100%;
             height: auto;
+            vertical-align: middle;
+            transition: transform 0.3s;
         }
+
         .image-card:hover {
-            transform: scale(1.05);
-            border-color: #888;
+            transform: scale(1.03);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Lightbox CSS */
+        .lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .lightbox img {
+            max-height: 80vh;
+            max-width: 90vw;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 1);
+            border-radius: 10px;
         }
     </style>
 </head>
@@ -61,6 +112,12 @@
     </div>
     <div id="imageContainer"></div>
 
+    <!-- Lightbox Element for Image Preview -->
+    <div id="lightbox" class="lightbox">
+        <span id="lightboxClose" style="position: absolute; top: 20px; right: 30px; font-size: 30px; color: #fff; cursor: pointer; z-index: 2100;">&times;</span>
+        <img id="lightboxImage" src="" alt="Enlarged Image">
+    </div>
+
     <script>
         let prompts = [];
         let generatedPrompts = new Set();
@@ -69,26 +126,37 @@
         const apiUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
 
         async function query(data) {
-            const response = await fetch(apiUrl, {
-                headers: { Authorization: `Bearer ${apiKey}` },
-                method: 'POST',
-                body: JSON.stringify(data),
-            });
-            const blob = await response.blob();
-            return URL.createObjectURL(blob);
+            try {
+                const response = await fetch(apiUrl, {
+                    headers: { Authorization: `Bearer ${apiKey}` },
+                    method: 'POST',
+                    body: JSON.stringify(data),
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP status ${response.status}`);
+                }
+                const blob = await response.blob();
+                return URL.createObjectURL(blob);
+            } catch (error) {
+                console.error('Error fetching image:', error);
+                return null;
+            }
         }
 
         function addTheme() {
             const themeInput = document.getElementById('themeInput').value.trim();
-            if (themeInput && !generatedPrompts.has(themeInput)) {
-                prompts.unshift(themeInput);
-                if (prompts.length > 15) {
-                    prompts.pop();
-                }
-                document.getElementById('themeInput').value = '';
-                generateImage(themeInput);
-                generatedPrompts.add(themeInput);
+            if (themeInput === '') {
+                alert('Por favor, digite um tema.');
+                return;
             }
+            if (generatedPrompts.has(themeInput)) {
+                alert('Este tema já foi adicionado.');
+                return;
+            }
+            prompts.unshift(themeInput);
+            document.getElementById('themeInput').value = '';
+            generateImage(themeInput);
+            generatedPrompts.add(themeInput);
         }
 
         function clearHistory() {
@@ -111,7 +179,11 @@
         async function generateImage(prompt) {
             if (!paused) {
                 const imageUrl = await query({ inputs: prompt });
-                displayImage(imageUrl, prompt);
+                if (imageUrl) {
+                    displayImage(imageUrl, prompt);
+                } else {
+                    console.error('Failed to generate image for:', prompt);
+                }
             }
         }
 
@@ -119,36 +191,45 @@
             const container = document.getElementById('imageContainer');
             const imgCard = document.createElement('div');
             imgCard.classList.add('image-card');
-            // Removed the prompt display under the image
             imgCard.innerHTML = `<img src="${imageUrl}" alt="Generated Image">`;
+            imgCard.onclick = () => showLightbox(imageUrl);
             container.prepend(imgCard);
-            if (container.children.length > 20) {
-                container.removeChild(container.lastChild);
-            }
         }
+
+        function showLightbox(imageUrl) {
+            const lightbox = document.getElementById('lightbox');
+            const lightboxImage = document.getElementById('lightboxImage');
+            lightboxImage.src = imageUrl;
+            lightbox.style.display = 'flex';
+        }
+
+        document.getElementById('lightboxClose').onclick = function() {
+            const lightbox = document.getElementById('lightbox');
+            lightbox.style.display = 'none';
+        };
 
         function getRandomWord() {
             const words = [
                 'mysterious', 'fantasy', 'futuristic', 'dreamlike', 'surreal', 
-                'cosmic', 'mythical', 'ethereal', 'enigmatic', 'vivid', 'robotic', 'alien', 'cyberpunk', 'steampunk', 'psychedelic'
+                'cosmic', 'mythical', 'ethereal', 'enigmatic', 'vivid', 
+                'robotic', 'alien', 'cyberpunk', 'steampunk', 'psychedelic'
             ];
             return words[Math.floor(Math.random() * words.length)];
         }
 
         function getShuffledPrompts() {
-            const randomWords = Array.from({ length: 3 }, getRandomWord);
+            const randomWords = Array.from({length: 3}, getRandomWord);
             return [...prompts, ...randomWords]
                 .sort(() => 0.5 - Math.random())
                 .join(', ');
         }
 
         setInterval(() => {
-            if (prompts.length && !paused) {
+            if (!paused && prompts.length) {
                 const shuffledPrompt = getShuffledPrompts();
                 generateImage(shuffledPrompt);
             }
         }, 20000);
-
     </script>
 </body>
 </html>
