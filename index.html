@@ -101,29 +101,114 @@
             box-shadow: 0 0 20px rgba(0, 0, 0, 1);
             border-radius: 10px;
         }
+
+        .lightbox:target {
+            display: flex;
+        }
+
+        /* Navigation Buttons for Lightbox */
+        .nav-button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            border-radius: 50%;
+        }
+
+        .nav-button:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .nav-button.prev {
+            left: 20px;
+        }
+
+        .nav-button.next {
+            right: 20px;
+        }
+
+        /* Theme List Modal CSS */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #333;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            color: white;
+            border-radius: 10px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover, .close:focus {
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div id="controls">
         <input type="text" id="themeInput" placeholder="Digite um tema" onkeydown="handleKeyDown(event)">
         <button onclick="addTheme()">Adicionar Tema</button>
+        <button onclick="showThemes()">Mostrar Temas</button>
         <button onclick="clearHistory()">Apagar Histórico</button>
         <button onclick="togglePause()"><span id="pauseButtonText">Pausar</span></button>
     </div>
     <div id="imageContainer"></div>
 
     <!-- Lightbox Element for Image Preview -->
-    <div id="lightbox" class="lightbox">
-        <span id="lightboxClose" style="position: absolute; top: 20px; right: 30px; font-size: 30px; color: #fff; cursor: pointer; z-index: 2100;">&times;</span>
+    <div id="lightbox" class="lightbox" onclick="closeLightbox(event)">
+        <span id="lightboxClose" class="close">&times;</span>
+        <button class="nav-button prev" onclick="showPrevImage(event)">&#10094;</button>
         <img id="lightboxImage" src="" alt="Enlarged Image">
+        <button class="nav-button next" onclick="showNextImage(event)">&#10095;</button>
+    </div>
+
+    <!-- Modal for Theme List -->
+    <div id="themeModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Temas Adicionados</h2>
+            <ul id="themeList"></ul>
+        </div>
     </div>
 
     <script>
         let prompts = [];
         let generatedPrompts = new Set();
         let paused = false;
+        let currentIndex = -1;
         const apiKey = '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';
         const apiUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
+        const themeModal = document.getElementById('themeModal');
+        const themeList = document.getElementById('themeList');
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImage = document.getElementById('lightboxImage');
+        const images = [];
 
         async function query(data) {
             try {
@@ -155,6 +240,7 @@
             }
             prompts.unshift(themeInput);
             document.getElementById('themeInput').value = '';
+            updateThemeList();
             generateImage(themeInput);
             generatedPrompts.add(themeInput);
         }
@@ -163,6 +249,7 @@
             prompts = [];
             generatedPrompts.clear();
             document.getElementById('imageContainer').innerHTML = '';
+            updateThemeList();
         }
 
         function togglePause() {
@@ -192,21 +279,64 @@
             const imgCard = document.createElement('div');
             imgCard.classList.add('image-card');
             imgCard.innerHTML = `<img src="${imageUrl}" alt="Generated Image">`;
-            imgCard.onclick = () => showLightbox(imageUrl);
+            imgCard.onclick = () => showLightbox(imageUrl, container.children.length - 1);
             container.prepend(imgCard);
+            images.push(imageUrl);
+            if (currentIndex === -1) currentIndex = 0; // Set currentIndex if not set
         }
 
-        function showLightbox(imageUrl) {
-            const lightbox = document.getElementById('lightbox');
-            const lightboxImage = document.getElementById('lightboxImage');
+        function showLightbox(imageUrl, index) {
+            currentIndex = index;
             lightboxImage.src = imageUrl;
             lightbox.style.display = 'flex';
         }
 
-        document.getElementById('lightboxClose').onclick = function() {
-            const lightbox = document.getElementById('lightbox');
-            lightbox.style.display = 'none';
-        };
+        function closeLightbox(event) {
+            if (event.target === lightbox || event.target === document.getElementById('lightboxClose')) {
+                lightbox.style.display = 'none';
+            }
+        }
+
+        function showPrevImage(event) {
+            event.stopPropagation();
+            currentIndex = (currentIndex > 0) ? currentIndex - 1 : images.length - 1;
+            lightboxImage.src = images[currentIndex];
+        }
+
+        function showNextImage(event) {
+            event.stopPropagation();
+            currentIndex = (currentIndex < images.length - 1) ? currentIndex + 1 : 0;
+            lightboxImage.src = images[currentIndex];
+        }
+
+        function showThemes() {
+            themeModal.style.display = 'block';
+            updateThemeList();
+        }
+
+        function updateThemeList() {
+            themeList.innerHTML = '';
+            prompts.forEach((theme, index) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = theme;
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Remover';
+                removeButton.onclick = () => removeTheme(index);
+                listItem.appendChild(removeButton);
+                themeList.appendChild(listItem);
+            });
+        }
+
+        function removeTheme(index) {
+            const theme = prompts[index];
+            prompts.splice(index, 1);
+            generatedPrompts.delete(theme);
+            updateThemeList();
+        }
+
+        function closeModal() {
+            themeModal.style.display = 'none';
+        }
 
         function getRandomWord() {
             const words = [
@@ -230,6 +360,12 @@
                 generateImage(shuffledPrompt);
             }
         }, 20000);
+
+        window.onclick = function(event) {
+            if (event.target === themeModal) {
+                closeModal();
+            }
+        }
     </script>
 </body>
 </html>
