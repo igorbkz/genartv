@@ -153,7 +153,8 @@
             border: 1px solid #888;
             width: 80%;
             color: white;
-            border-radius: 10px;
+            border-radius:
+10px;
         }
 
         .close {
@@ -175,7 +176,7 @@
         <input type="text" id="themeInput" placeholder="Digite um tema" onkeydown="handleKeyDown(event)">
         <button onclick="addTheme()">Adicionar Tema</button>
         <button onclick="showThemes()">Mostrar Temas</button>
-        <button onclick="clearHistory()">Apagar Histórico</button>
+        <button onclick="confirmClearHistory()">Apagar Histórico</button>
         <button onclick="togglePause()"><span id="pauseButtonText">Pausar</span></button>
     </div>
     <div id="imageContainer"></div>
@@ -243,6 +244,13 @@
             updateThemeList();
             generateImage(themeInput);
             generatedPrompts.add(themeInput);
+        }
+
+        function confirmClearHistory() {
+            const confirmClear = confirm('Você tem certeza que deseja apagar o histórico?');
+            if (confirmClear) {
+                clearHistory();
+            }
         }
 
         function clearHistory() {
@@ -320,7 +328,7 @@
                 const listItem = document.createElement('li');
                 listItem.textContent = theme;
                 const removeButton = document.createElement('button');
-                removeButton.textContent = 'Remover';
+                removeButton.textContent = 'Remove';
                 removeButton.onclick = () => removeTheme(index);
                 listItem.appendChild(removeButton);
                 themeList.appendChild(listItem);
@@ -338,26 +346,25 @@
             themeModal.style.display = 'none';
         }
 
-        function getRandomWord() {
-            const words = [
-                'mysterious', 'fantasy', 'futuristic', 'dreamlike', 'surreal', 
-                'cosmic', 'mythical', 'ethereal', 'enigmatic', 'vivid', 
-                'robotic', 'alien', 'cyberpunk', 'steampunk', 'psychedelic'
+        function getRandomStyle() {
+            const styles = [
+                'impressionism', 'cubism', 'expressionism', 'surrealism', 'realism', 
+                'abstract', 'digital art', 'conceptual art', 'abstract expressionism', 'pop art',
+                'futurism', 'minimalism', 'modern art', 'contemporary art', 'art deco'
             ];
-            return words[Math.floor(Math.random() * words.length)];
+            return styles[Math.floor(Math.random() * styles.length)];
         }
 
-        function getShuffledPrompts() {
-            const randomWords = Array.from({length: 3}, getRandomWord);
-            return [...prompts, ...randomWords]
-                .sort(() => 0.5 - Math.random())
-                .join(', ');
+        function getPromptWithStyle(prompt) {
+            const style = getRandomStyle();
+            return `${prompt}, style ${style}`;
         }
 
         setInterval(() => {
             if (!paused && prompts.length) {
-                const shuffledPrompt = getShuffledPrompts();
-                generateImage(shuffledPrompt);
+                const prompt = prompts[Math.floor(Math.random() * prompts.length)];
+                const styledPrompt = getPromptWithStyle(prompt);
+                generateImage(styledPrompt);
             }
         }, 20000);
 
