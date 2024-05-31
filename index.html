@@ -199,7 +199,7 @@
 
     <script>
         let prompts = [];
-        let usedPrompts = new Set();
+        let generatedPrompts = new Set();
         let paused = false;
         let currentIndex = -1;
         const apiKey = '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';
@@ -209,6 +209,7 @@
         const lightbox = document.getElementById('lightbox');
         const lightboxImage = document.getElementById('lightboxImage');
         const images = [];
+        let recentPrompts = [];
 
         async function query(data) {
             try {
@@ -234,14 +235,15 @@
                 alert('Por favor, digite um tema.');
                 return;
             }
-            if (usedPrompts.has(themeInput)) {
+            if (generatedPrompts.has(themeInput)) {
                 alert('Este tema já foi adicionado.');
                 return;
             }
             prompts.unshift(themeInput);
             document.getElementById('themeInput').value = '';
             updateThemeList();
-            usedPrompts.add(themeInput);
+            generateImage(themeInput);
+            generatedPrompts.add(themeInput);
         }
 
         function confirmClearHistory() {
@@ -253,7 +255,8 @@
 
         function clearHistory() {
             prompts = [];
-            usedPrompts.clear();
+            generatedPrompts.clear();
+            recentPrompts = [];
             document.getElementById('imageContainer').innerHTML = '';
             updateThemeList();
         }
@@ -271,14 +274,9 @@
 
         async function generateImage(prompt) {
             if (!paused) {
-                if (usedPrompts.has(prompt)) {
-                    console.log(`Prompt "${prompt}" já foi usado. Ignorando.`);
-                    return;
-                }
                 const imageUrl = await query({ inputs: prompt });
                 if (imageUrl) {
                     displayImage(imageUrl, prompt);
-                    usedPrompts.add(prompt); // Marcar prompt como usado
                 } else {
                     console.error('Failed to generate image for:', prompt);
                 }
@@ -288,12 +286,9 @@
         function displayImage(imageUrl, prompt) {
             const container = document.getElementById('imageContainer');
             const imgCard = document.createElement('div');
-            imgCard.className = 'image-card';
-            imgCard.onclick = () => showLightbox(imageUrl, images.length - 1);
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.alt = prompt;
-            imgCard.appendChild(img);
+            imgCard.classList.add('image-card');
+            imgCard.innerHTML = `<img src="${imageUrl}" alt="Generated Image">`;
+            imgCard.onclick = () => showLightbox(imageUrl, container.children.length - 1);
             container.prepend(imgCard);
             images.push(imageUrl);
             if (currentIndex === -1) currentIndex = 0; // Set currentIndex if not set
@@ -334,7 +329,7 @@
                 const listItem = document.createElement('li');
                 listItem.textContent = theme;
                 const removeButton = document.createElement('button');
-                removeButton.textContent = 'Remover';
+                removeButton.textContent = 'Remove';
                 removeButton.onclick = () => removeTheme(index);
                 listItem.appendChild(removeButton);
                 themeList.appendChild(listItem);
@@ -344,7 +339,7 @@
         function removeTheme(index) {
             const theme = prompts[index];
             prompts.splice(index, 1);
-            usedPrompts.delete(theme);
+            generatedPrompts.delete(theme);
             updateThemeList();
         }
 
@@ -354,37 +349,53 @@
 
         function getRandomStyle() {
             const styles = [
-                'impressionismo', 'cubismo', 'expressionismo', 'surrealismo', 'realismo', 
-                'arte abstrata', 'arte digital', 'arte conceitual', 'expressionismo abstrato', 'pop art',
-                'futurismo', 'minimalismo', 'arte moderna', 'arte contemporânea', 'art deco'
+                'impressionism', 'cubism', 'expressionism', 'surrealism', 'realism', 
+                'abstract', 'digital art', 'conceptual art', 'abstract expressionism', 'pop art',
+                'futurism', 'minimalism', 'modern art', 'contemporary art', 'art deco'
             ];
             return styles[Math.floor(Math.random() * styles.length)];
         }
 
         function getPromptWithStyle(prompt) {
             const style = getRandomStyle();
-            return Math.random() > 0.5 ? `${prompt}, estilo ${style}` : prompt;
+            return `${prompt}, style ${style}`;
         }
 
-        function getRandomCombination() {
-            if (prompts.length < 3) {
-                return getPromptWithStyle(prompts.join(', '));
-            }
-
-            const shuffledPrompts = prompts.slice();
-            for (let i = shuffledPrompts.length - 1; i > 0; i--) {
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-                [shuffledPrompts[i], shuffledPrompts[j]] = [shuffledPrompts[j], shuffledPrompts[i]];
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function generateUniquePrompt() {
+            if (prompts.length < 3) {
+                return null;
             }
 
-            const combination = shuffledPrompts.slice(0, 3).join(', ');
-            return getPromptWithStyle(combination);
+            const availablePrompts = [...prompts];
+            shuffleArray(availablePrompts);
+
+            let newPrompt;
+            do {
+                const selectedPrompts = availablePrompts.slice(0, 3).join(', ');
+                newPrompt = getPromptWithStyle(selectedPrompts);
+            } while (recentPrompts.includes(newPrompt));
+
+            recentPrompts.push(newPrompt);
+            if (recentPrompts.length > 5) {
+                recentPrompts.shift(); // Keep the history size manageable
+            }
+
+            return newPrompt;
         }
 
         setInterval(() => {
             if (!paused && prompts.length) {
-                const styledPrompt = getRandomCombination();
-                generateImage(styledPrompt);
+                const uniquePrompt = generateUniquePrompt();
+                if (uniquePrompt) {
+                    generateImage(uniquePrompt);
+                }
             }
         }, 20000);
 
