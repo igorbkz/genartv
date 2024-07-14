@@ -383,7 +383,7 @@
             } while (recentPrompts.includes(newPrompt));
 
             recentPrompts.push(newPrompt);
-            if (recentPrompts.length > 5) {
+            if (recentPrompts.length > 30) {
                 recentPrompts.shift(); // Keep the history size manageable
             }
 
@@ -397,7 +397,7 @@
                     generateImage(uniquePrompt);
                 }
             }
-        }, 20000);
+        }, 5000);
 
         window.onclick = function(event) {
             if (event.target === themeModal) {
